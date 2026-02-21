@@ -1,31 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Instant Data Cleaner</title>
+  <title>Data Cleaner</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Instant Data Cleaner</h1>
 
-  <input type="file" id="fileInput" />
-  <button onclick="uploadFile()">Process Data</button>
+<div class="container">
+  <h1>Data Cleaner</h1>
+  <p class="tagline">Upload messy data → Get clean records instantly</p>
+
+  <div class="upload-box">
+    <input type="file" id="fileInput" />
+    <button onclick="uploadFile()">Clean My Data</button>
+  </div>
 
   <p id="status"></p>
-
-  <a id="downloadLink" style="display:none">Download Cleaned File</a>
+  <a id="downloadLink" style="display:none"></a>
 
   <div id="reportBox" style="display:none;">
-    <h2>Cleaning Report</h2>
+    <h3>Cleaning Report</h3>
     <table>
       <tr><td>Rows Before</td><td id="rowsBefore"></td></tr>
       <tr><td>Rows After</td><td id="rowsAfter"></td></tr>
       <tr><td>Duplicates Removed</td><td id="duplicatesRemoved"></td></tr>
       <tr><td>Null Rows Removed</td><td id="nullRowsRemoved"></td></tr>
-      <tr><td>Columns Standardized</td><td id="columnsStandardized"></td></tr>
-      <tr><td>Auto Delete (seconds)</td><td id="autoDelete"></td></tr>
+      <tr><td>Anomalies Removed</td><td id="anomaliesRemoved"></td></tr>
+      <tr><td>Auto Delete (sec)</td><td id="autoDelete"></td></tr>
     </table>
   </div>
+</div>
 
-  <script src="script.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
