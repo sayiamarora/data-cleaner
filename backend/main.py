@@ -6,11 +6,11 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
-import os, uuid, time, threading
+from difflib import SequenceMatcher
+import os, uuid, time, threading, re, unicodedata
 
 app = FastAPI()
 
-# Allow frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,14 +19,14 @@ app.add_middleware(
 )
 
 TEMP_DIR = "temp"
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-FILE_LIFETIME = 300  # 5 minutes
+MAX_FILE_SIZE = 10 * 1024 * 1024
+FILE_LIFETIME = 300
 
 os.makedirs(TEMP_DIR, exist_ok=True)
 app.mount("/temp", StaticFiles(directory="temp"), name="temp")
 
 
-# -------- AUTO CLEANUP SERVICE --------
+# ---------- AUTO CLEANUP ----------
 def cleanup_job():
     while True:
         now = time.time()
@@ -40,20 +40,117 @@ def cleanup_job():
 threading.Thread(target=cleanup_job, daemon=True).start()
 
 
-# -------- CLEANING ENDPOINT --------
+# ---------- NORMALIZATION ----------
+def normalize(val):
+    if pd.isna(val):
+        return ""
+
+    val = str(val)
+    val = unicodedata.normalize("NFKD", val)
+    val = re.sub(r"[\u200B-\u200D\uFEFF]", "", val)
+    val = re.sub(r"\s+", " ", val)
+    val = val.strip().lower()
+
+    # normalize numbers
+    try:
+        return str(round(float(val), 4))
+    except:
+        pass
+
+    # normalize dates
+    try:
+        dt = pd.to_datetime(val, errors="raise")
+        return dt.strftime("%Y-%m-%d")
+    except:
+        pass
+
+    return val
+
+
+# ---------- SIMILARITY FUNCTION ----------
+def similarity(a, b):
+    return SequenceMatcher(None, a, b).ratio()
+
+
+# ---------- RECORD MATCHING ----------
+def records_match(row1, row2, threshold=0.92):
+    score = 0
+    weight_sum = 0
+
+    for col in row1.index:
+
+        v1 = normalize(row1[col])
+        v2 = normalize(row2[col])
+
+        # numeric tolerance
+        try:
+            if abs(float(v1) - float(v2)) <= 1:
+                score += 1.2
+                weight_sum += 1.2
+                continue
+        except:
+            pass
+
+        # date tolerance
+        try:
+            d1 = pd.to_datetime(v1)
+            d2 = pd.to_datetime(v2)
+            if abs((d1 - d2).days) <= 3:
+                score += 1.2
+                weight_sum += 1.2
+                continue
+        except:
+            pass
+
+        # text similarity
+        sim = similarity(v1, v2)
+        score += sim
+        weight_sum += 1
+
+    return (score / weight_sum) >= threshold
+
+
+# ---------- SMART DEDUP ENGINE ----------
+def smart_deduplicate(df):
+
+    keep_rows = []
+    used = set()
+
+    for i in range(len(df)):
+        if i in used:
+            continue
+
+        base = df.iloc[i]
+        duplicates = [i]
+
+        for j in range(i+1, len(df)):
+            if j in used:
+                continue
+
+            if records_match(base, df.iloc[j]):
+                duplicates.append(j)
+
+        # choose best record (least nulls)
+        best = min(duplicates, key=lambda x: df.iloc[x].isnull().sum())
+        keep_rows.append(best)
+
+        for d in duplicates:
+            used.add(d)
+
+    return df.iloc[keep_rows]
+
+
+# ---------- API ----------
 @app.post("/clean-data")
 async def clean_data(file: UploadFile = File(...)):
 
-    # Validate file type
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         raise HTTPException(status_code=400, detail="Only CSV/Excel allowed")
 
-    # Validate file size
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="File too large")
 
-    # Save file
     file_id = str(uuid.uuid4())
     raw_path = f"{TEMP_DIR}/{file_id}_{file.filename}"
     clean_path = f"{TEMP_DIR}/cleaned_{file_id}.csv"
@@ -61,7 +158,7 @@ async def clean_data(file: UploadFile = File(...)):
     with open(raw_path, "wb") as f:
         f.write(content)
 
-    # -------- LOAD FILE --------
+    # LOAD FILE
     if file.filename.endswith(".csv"):
         df = pd.read_csv(raw_path)
     else:
@@ -69,40 +166,20 @@ async def clean_data(file: UploadFile = File(...)):
 
     rows_before = len(df)
 
-    # -------- SMART DUPLICATE DETECTION --------
-    df_normalized = df.copy()
+    # ---------- SMART DEDUP ----------
+    df = smart_deduplicate(df)
+    duplicates_removed = rows_before - len(df)
 
-    for col in df_normalized.columns:
-        if df_normalized[col].dtype == "object":
-            df_normalized[col] = (
-                df_normalized[col]
-                .astype(str)
-                .str.strip()
-                .str.lower()
-                .str.replace(r"\s+", " ", regex=True)
-            )
-
-    duplicate_mask = df_normalized.duplicated()
-    duplicates_removed = duplicate_mask.sum()
-    df = df.loc[~duplicate_mask].copy()
-
-    # -------- NULL HANDLING --------
+    # ---------- NULL CLEAN ----------
     null_rows_removed = df.isnull().any(axis=1).sum()
     df = df.dropna()
 
-    # -------- COLUMN STANDARDIZATION --------
+    # ---------- COLUMN STANDARDIZATION ----------
     old_cols = list(df.columns)
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
     columns_fixed = old_cols != list(df.columns)
 
-    # -------- TYPE NORMALIZATION --------
-    for col in df.columns:
-        try:
-            df[col] = pd.to_datetime(df[col])
-        except:
-            pass
-
-    # -------- ANOMALY DETECTION --------
+    # ---------- ANOMALY DETECTION ----------
     numeric_df = df.select_dtypes(include=[np.number])
     anomalies_removed = 0
 
@@ -115,11 +192,10 @@ async def clean_data(file: UploadFile = File(...)):
 
     rows_after = len(df)
 
-    # -------- SAVE CLEAN FILE --------
     df.to_csv(clean_path, index=False)
 
     return {
-        "message": "Data cleaned successfully",
+        "message": "Smart cleaning complete",
         "download_file": clean_path,
         "report": {
             "rows_before": rows_before,
