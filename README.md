@@ -1,106 +1,54 @@
-🚀 Features
-✔ Smart Duplicate Detection
+Data Cleaner
 
-Removes duplicates even when values differ in:
+Data Cleaner is an intelligent data preprocessing tool that automatically cleans, standardizes, deduplicates, and detects anomalies in CSV and Excel datasets through a smart backend engine and simple web interface.
+It helps convert raw, inconsistent datasets into analysis-ready structured data with minimal manual effort.
 
-Case sensitivity (John vs john)
+Features
 
-Spacing or hidden characters
+Smart Duplicate Detection
+Removes duplicates even when values differ in case, spacing, formatting, or minor numeric/date variations.
+Instead of exact matching, it uses normalization and similarity scoring to detect logically identical records.
 
-Date formats
+Automatic Data Standardization
+Column names, text values, and formats are normalized automatically to ensure consistency across the dataset.
 
-Numeric formats
+Missing Value Handling
+Rows containing incomplete or invalid data are detected and removed to improve downstream analytics quality.
 
-Minor value variations
+ML-Based Anomaly Detection
+Uses the Isolation Forest algorithm to identify abnormal numeric records, outliers, or suspicious entries.
 
-Uses similarity scoring and normalization instead of exact matching.
+Secure Temporary File Handling
+Uploaded files are stored temporarily and automatically deleted after a defined time window using a background cleanup service.
 
-✔ Data Standardization
+Simple Web Interface
+Users can upload datasets, view a processing report, and download the cleaned file instantly.
 
-Cleans column names
+Processing Pipeline
 
-Normalizes formats
+The system processes data in the following order:
+File validation → Dataset loading → Smart deduplication → Null removal → Column normalization → Anomaly detection → Clean export → Auto file cleanup.
 
-Removes inconsistent spacing
+Tech Stack
 
-Handles mixed data types
+Backend: FastAPI, Pandas, NumPy, Scikit-learn
+Algorithms: Isolation Forest, similarity matching, canonical normalization
+Frontend: HTML, CSS, JavaScript
 
-✔ Missing Value Handling
+Supported Input Formats
 
-Detects incomplete rows
+CSV, XLSX, and XLS files are supported.
 
-Removes invalid records automatically
+Run Locally
 
-✔ Anomaly Detection (ML-based)
+Install dependencies:
 
-Uses Isolation Forest to detect outliers such as:
+pip install fastapi uvicorn pandas numpy scikit-learn openpyxl
 
-Suspicious numeric values
+Start the backend server:
 
-Entry errors
+uvicorn main:app --reload
 
-Abnormal records
+The goal of this project is to reduce manual data cleaning effort and improve dataset reliability before analytics, dashboards, or machine learning workflows.
 
-✔ Secure Temporary Storage
-
-Uploaded files auto-delete after processing window
-
-Background cleanup service prevents data persistence
-
-✔ Simple Web UI
-
-Upload CSV/Excel
-
-View cleaning report
-
-Download cleaned dataset
-
-🧠 Processing Pipeline
-
-File validation & upload
-
-Dataset loading
-
-Smart duplicate resolution
-
-Null record removal
-
-Column normalization
-
-ML anomaly detection
-
-Clean dataset export
-
-Auto file cleanup
-
-🏗️ Tech Stack
-
-Backend
-
-FastAPI
-
-Pandas
-
-NumPy
-
-Scikit-learn
-
-Algorithms
-
-Isolation Forest (outlier detection)
-
-Weighted similarity matching
-
-Canonical data normalization
-
-Frontend
-
-HTML, CSS, JavaScript
-
-📂 Supported Inputs
-
-.csv
-
-.xlsx
-
-.xls
+If you want, I can also give you:
